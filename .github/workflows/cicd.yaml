@@ -31,7 +31,7 @@ jobs:
       # Upload `variables.json` to Composer bucket
       - name: Upload Variables JSON to GCS
         run: |
-          gsutil cp 04_Assets/variables/dev/variables.json gs://us-central1-airflow-dev-220334f5-bucket/data/dev/variables.json
+          gsutil cp D:\AnjulProject\DataEngg-Flight_Booking_Project\variables\dev\variables.json gs://us-central1-airflow-dev-10591533-bucket/data/dev/variables.json
 
       # Import Variables into Airflow-DEV
       - name: Import Variables into Airflow-DEV
@@ -43,7 +43,7 @@ jobs:
       # Sync Spark job to GCS
       - name: Upload Spark Job to GCS
         run: |
-          gsutil cp 04_Assets/spark_transformation_job.py gs://airflow-test-projects-gds-dev/flight-booking-analysis/spark-job/
+          gsutil cp D:\AnjulProject\DataEngg-Flight_Booking_Project\spark_transformation_job.py gs://airflow_flight_booking_bucket/flight-booking-analysis/spark-job/
 
       # Sync Airflow DAG to Airflow DEV Composer
       - name: Upload Airflow DAG to DEV Environment (Dag Folder)
@@ -51,7 +51,7 @@ jobs:
           gcloud composer environments storage dags import \
             --environment airflow-dev \
             --location us-central1 \
-            --source 04_Assets/airflow_job.py
+            --source airflow_job.py
 
   upload-to-prod:
     if: github.ref == 'refs/heads/main'
@@ -77,7 +77,7 @@ jobs:
       # Upload `variables.json` to Composer bucket
       - name: Upload Variables JSON to GCS
         run: |
-          gsutil cp 04_Assets/variables/prod/variables.json gs://us-central1-airflow-prod-45e3329a-bucket/data/prod/variables.json
+          gsutil cp D:\AnjulProject\DataEngg-Flight_Booking_Project\variables\prod\variables.json gs://us-central1-airflow-prod-47ec3a8f-bucket/data/prod/variables.json
 
       # Import Variables into Airflow-PROD
       - name: Import Variables into Airflow-PROD
@@ -89,7 +89,7 @@ jobs:
       # Sync Spark job to GCS
       - name: Upload Spark Job to GCS
         run: |
-          gsutil cp 04_Assets/spark_transformation_job.py gs://airflow-test-projects-gds-dev/flight-booking-analysis/spark-job/
+          gsutil cp D:\AnjulProject\DataEngg-Flight_Booking_Project\spark_transformation_job.py gs://airflow_flight_booking_bucket/flight-booking-analysis/spark-job/
 
       # Sync Airflow DAG to Airflow PROD Composer
       - name: Upload Airflow DAG to PROD Environment (Dag Folder)
@@ -97,4 +97,4 @@ jobs:
           gcloud composer environments storage dags import \
             --environment airflow-prod \
             --location us-central1 \
-            --source 04_Assets/airflow_job.py
+            --source airflow_job.py
