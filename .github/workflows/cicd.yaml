@@ -1,17 +1,20 @@
 name: Flight Booking CICD
+# cicd.yaml helps perform all automated actions when code is pushed[cite: 1]
+# If successful, a PR is generated. Once approved by seniors, it saves to the main branch[cite: 1].
 
+# Defines the trigger for the actions
 on:
   push:
     branches:
-      - dev
+      - dev  # All development happens on the dev branch
       - main
 
-      #COMMENT
-
 jobs:
+# Job 1: Upload to Dev Environment
   upload-to-dev:
+  # Runs only if the push happens on the 'dev' branch
     if: github.ref == 'refs/heads/dev'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Uses standard GitHub runner OS
 
     steps:
       # Checkout the repository
@@ -22,6 +25,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
+         # Uses the JSON service account key stored in GitHub secrets
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       # Setup Google Cloud SDK
@@ -55,6 +59,7 @@ jobs:
             --location us-central1 \
             --source airflow_job.py
 
+ # Job 2: Upload to Prod Environment (Triggers on main branch push)
   upload-to-prod:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
