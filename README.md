@@ -13,6 +13,7 @@ The project features a strict separation of `dev` and `prod` environments, fully
 5. **Data Warehousing (BigQuery):** The transformed dataset and aggregated insights (Route Insights and Origin Insights) are written directly into BigQuery datasets (`flight_data_dev` or `flight_data_prod`).
 
 <p align="center"><img width="468" height="447" alt="flight booking architecture" src="https://github.com/user-attachments/assets/9f6942da-644a-4a03-a7ff-ee63b2d7e2a8" /></p>
+<p align="center"><img width="1430" height="194" alt="Flightarc" src="https://github.com/user-attachments/assets/96fd6cae-97d0-400e-b580-4298b839deb9" /></p>
 
 
 ## Tech Stack
