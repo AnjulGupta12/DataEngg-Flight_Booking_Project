@@ -22,8 +22,6 @@ jobs:
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
-# prob 
-
       # Setup Google Cloud SDK
       - name: Setup Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1
@@ -33,8 +31,9 @@ jobs:
       # Upload `variables.json` to Composer bucket
       - name: Upload Variables JSON to GCS
         run: |
-          gsutil cp variables\dev\variables.json gs://us-central1-airflow-dev-10591533-bucket/data/dev/variables.json
-
+        gsutil cp variables/dev/variables.json gs://us-central1-airflow-dev-10591533-bucket/data/dev/variables.json      
+     
+     
       # Import Variables into Airflow-DEV
       - name: Import Variables into Airflow-DEV
         run: |
@@ -79,7 +78,7 @@ jobs:
       # Upload `variables.json` to Composer bucket
       - name: Upload Variables JSON to GCS
         run: |
-          gsutil cp variables\dev\variables.json gs://us-central1-airflow-prod-47ec3a8f-bucket/data/prod/variables.json
+        gsutil cp variables/prod/variables.json gs://us-central1-airflow-prod-47ec3a8f-bucket/data/prod/variables.json
 
       # Import Variables into Airflow-PROD
       - name: Import Variables into Airflow-PROD
