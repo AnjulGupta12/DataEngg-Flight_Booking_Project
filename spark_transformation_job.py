@@ -1,31 +1,32 @@
-import argparse
+import argparse # To pass command-line arguments passed by DataprocCreateBatchOperator
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, count, avg, when, lit, expr
 import logging
-import sys
+import sys # Importing system files
 
 # Initialize Logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.INFO, # Formatting logs to include timestamp, level, and message (e.g., 2026-09-05 19:04:26 - INFO - Input path resolved)
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
+# Main job process definition
 def job_process(env, bq_project, bq_dataset, transformed_table, route_insights_table, origin_insights_table):
     try:
-        # Initialize SparkSession
+        # Initialize Spark Session working on Hive implementation
         spark = SparkSession.builder \
             .appName("FlightBookingAnalysis") \
             .config("spark.sql.catalogImplementation", "hive") \
             .getOrCreate()
 
         logger.info("Spark session initialized.")
-
-        # Resolve GCS path based on the environment
+        
+        # Resolve GCS path based on the environment to pick correct CSV file
         input_path = f"gs://airflow_flight_booking_bucket/flight-booking-analysis/source-{env}"
         logger.info(f"Input path resolved: {input_path}")
 
-        # Read the data from GCS
+        # Read the raw CSV data, inferschema applied
         data = spark.read.csv(input_path, header=True, inferSchema=True)
         logger.info("Data read from GCS.")
 
@@ -33,6 +34,10 @@ def job_process(env, bq_project, bq_dataset, transformed_table, route_insights_t
         logger.info("Starting data transformations.")
 
         # Add derived columns
+        # Add derived columns utilizing lit for standard python value conversion to Spark Column object
+        # is_weekend: 1 if flight_day is Sat or Sun, else 0
+        # lead_time_category: Categorizes purchase lead time into Last Minute, Short-Term, Long-Term
+        # booking_success_rate: Calculates success rate using an expression
         transformed_data = data.withColumn(
             "is_weekend", when(col("flight_day").isin("Sat", "Sun"), lit(1)).otherwise(lit(0))
         ).withColumn(
@@ -44,12 +49,14 @@ def job_process(env, bq_project, bq_dataset, transformed_table, route_insights_t
         )
 
         # Aggregations for insights
+        # Groups data by route to find total bookings, average flight duration, and average stay length
         route_insights = transformed_data.groupBy("route").agg(
             count("*").alias("total_bookings"),
             avg("flight_duration").alias("avg_flight_duration"),
             avg("length_of_stay").alias("avg_stay_length")
         )
 
+        # Groups data by booking origin to find total bookings, success rate, and average purchase lead
         booking_origin_insights = transformed_data.groupBy("booking_origin").agg(
             count("*").alias("total_bookings"),
             avg("booking_success_rate").alias("success_rate"),
@@ -58,7 +65,10 @@ def job_process(env, bq_project, bq_dataset, transformed_table, route_insights_t
 
         logger.info("Data transformations completed.")
 
+        # Write transformed data back to BigQuery using the 'direct' method to avoid intermediate load issues
+        
         # Write transformed data to BigQuery
+        # Overwrite mode replaces table data on fresh runs
         logger.info(f"Writing transformed data to BigQuery table: {bq_project}:{bq_dataset}.{transformed_table}")
         transformed_data.write \
             .format("bigquery") \
@@ -87,6 +97,7 @@ def job_process(env, bq_project, bq_dataset, transformed_table, route_insights_t
 
         logger.info("Data written to BigQuery successfully.")
 
+    # Prints message on failure
     except Exception as e:
         logger.error(f"An error occurred: {e}")
         sys.exit(1)
@@ -97,8 +108,10 @@ def job_process(env, bq_project, bq_dataset, transformed_table, route_insights_t
         logger.info("Spark session stopped.")
 
 if __name__ == "__main__":
-    # Parse command-line arguments
+    # Parse command-line arguments(not using Airflow XCom)
     parser = argparse.ArgumentParser(description="Process flight booking data and write to BigQuery.")
+    
+    # Setting required=True means these parameters must be supplied
     parser.add_argument("--env", required=True, help="Environment (e.g., dev, prod)")
     parser.add_argument("--bq_project", required=True, help="BigQuery project ID")
     parser.add_argument("--bq_dataset", required=True, help="BigQuery dataset name")
