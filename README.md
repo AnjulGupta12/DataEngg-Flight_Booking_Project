@@ -1,480 +1,135 @@
+# Flight Booking Data Engineering Pipeline
 
-# Flight Booking Analysis Pipeline
+## Overview
+This project implements a robust, scalable automated data pipeline for processing and analyzing flight booking data. Built entirely on Google Cloud Platform (GCP), it utilizes Apache Airflow (Cloud Composer) for orchestration, Dataproc Serverless for distributed data processing using PySpark, and BigQuery for data warehousing and analytics. 
 
-## A) Overview
-An automated data engineering pipeline built on Google Cloud Platform that processes flight booking data[cite: 1]. The project utilizes a fully automated CI/CD pipeline to deploy code to distinct environments[cite: 1].
+The project features a strict separation of `dev` and `prod` environments, fully automated via GitHub Actions CI/CD pipelines.
 
-## B) Explain Project
-*   **Business Need:** Process 16,654 raw flight booking records to track passenger metrics, booking success rates, and route insights[cite: 1].
-*   **Structure:** The project maintains strict separation between `dev` (development) and `prod` (production) environments[cite: 1].
-*   **Key Feature:** Uses a Dataproc Serverless cluster to run PySpark transformations, meaning compute resources are only utilized when data is actively being processed[cite: 1].
+## Architecture & Workflow
+1. **Data Ingestion (GCS):** Raw flight booking data (`flight_booking.csv`) is uploaded to a specific Google Cloud Storage (GCS) bucket (`airflow_flight_booking_bucket/flight-booking-analysis/source-{env}`).
+2. **Orchestration (Cloud Composer/Airflow):** An Airflow DAG (`flight_booking_dataproc_bq_dag`) runs a `GCSObjectExistenceSensor` to detect the arrival of the raw data file.
+3. **Data Processing (Dataproc Serverless):** Once the file is detected, Airflow triggers a PySpark batch job (`spark_transformation_job.py`) on Dataproc Serverless.
+4. **Transformations:** The PySpark job reads the CSV, cleans the data, engineers new features (e.g., `is_weekend`, `lead_time_category`, `booking_success_rate`), and aggregates insights.
+5. **Data Warehousing (BigQuery):** The transformed dataset and aggregated insights (Route Insights and Origin Insights) are written directly into BigQuery datasets (`flight_data_dev` or `flight_data_prod`).
 
-## C) Technology Stack
-*   **Version Control & CI/CD:** GitHub, GitHub Actions[cite: 1].
-*   **Data Lake:** Google Cloud Storage (GCS)[cite: 1].
-*   **Orchestration:** Apache Airflow (via Google Cloud Composer)[cite: 1].
-*   **Data Processing:** PySpark on Dataproc Serverless[cite: 1].
-*   **Data Warehouse:** Google BigQuery[cite: 1].
+<p align="center"><img width="468" height="447" alt="flight booking architecture" src="https://github.com/user-attachments/assets/9f6942da-644a-4a03-a7ff-ee63b2d7e2a8" /></p>
 
-## D) Project Architecture/Structure
-1.  **Source:** `Flight_booking.csv` lands in a GCS bucket[cite: 1].
-2.  **Monitor:** Airflow File Sensor checks for data arrival[cite: 1].
-3.  **Process:** Dataproc Serverless cluster spins up and runs the PySpark transformation job[cite: 1].
-4.  **Load:** Transformed data and aggregated insights are written to BigQuery[cite: 1].
 
-## E) Workflow
-1. Developer pushes code to the `dev` or `main` branch[cite: 1].
-2. GitHub Actions (`cicd.yaml`) triggers[cite: 1].
-3. Workflow authenticates to GCP, uploads `variables.json` to the Airflow bucket, syncs the PySpark script, and uploads the Airflow DAG[cite: 1].
-4. Once data is manually uploaded to the GCS source folder, the Airflow DAG triggers the data processing steps automatically[cite: 1].
-5. Processed data is saved into BigQuery as `transformed_flight_data`, `route_insights`, and `origin_insights`[cite: 1].
+## Tech Stack
+* **Orchestration:** Apache Airflow (GCP Cloud Composer 3)
+* **Data Processing:** Apache Spark (PySpark), GCP Dataproc Serverless
+* **Storage:** Google Cloud Storage (GCS)
+* **Data Warehouse:** Google BigQuery
+* **CI/CD:** GitHub Actions
+* **Language:** Python 3
 
-## F) Prerequisites (HOW and WHAT)
-*   **Airflow Environment:** Create a Google Cloud Composer environment. This automatically provisions the bucket where Airflow monitoring files will sit[cite: 1].
-*   **GCS Bucket:** Create a bucket named `airflow-test-projects-gds-dev` to hold the source data and Spark job files[cite: 1].
-*   **BigQuery Dataset:** In BigQuery Studio, create datasets (e.g., `flight_data_dev`) in the `us-central1` location[cite: 1]. **Do not create any tables**—the Spark job handles table creation[cite: 1].
-*   **GitHub Setup:** Create a repository, clone it locally (`git clone <URL>`), and set up Git CLI[cite: 1]. Create a development branch using `git checkout -b dev`[cite: 1]. 
-*   **Secret Keys:** Under GitHub Repository Settings -> Secrets and variables -> Actions, create repository secrets for `GCP_PROJECT_ID` and `GCP_SA_KEY` (the downloaded JSON credentials for your service account)[cite: 1].
-
-## G) Explain All Files
-*   `.github/workflows/cicd.yaml`: Automates GCP authentication, variable imports, and file synchronization based on branch pushes[cite: 1].
-*   `variables/dev/variables.json` & `variables/prod/variables.json`: Stores environment configurations like project IDs, bucket paths, and table names[cite: 1].
-*   `airflow-job.py`: Defines the Airflow DAG, including the `GCSObjectExistenceSensor` and `DataprocCreateBatchOperator`[cite: 1].
-*   `spark-transformation-job.py`: PySpark script that adds derived columns (e.g., `is_weekend`), performs group-by aggregations, and writes results to BigQuery[cite: 1].
-*   `Flight_booking.csv`: The raw source data containing 16,654 records[cite: 1].
-
+## Project Structure
+```text
+DataEngg-Flight_Booking_Project/
+│
+├── .github/
+│   └── workflows/
+│       └── cicd.yaml                  # GitHub Actions pipeline definitions for dev & prod
+│
+├── variables/
+│   ├── dev/
+│   │   └── variables.json             # Airflow variables for the DEV environment
+│   └── prod/
+│       └── variables.json             # Airflow variables for the PROD environment
+│
+├── airflow_job.py                     # Main Airflow DAG script
+├── spark_transformation_job.py        # PySpark data processing and transformation script
+├── flight_booking.csv                 # Sample raw data file
+└── README.md                          # Project documentation
 ```
 
----
+## Data Transformations & Insights
+The PySpark job performs several key transformations before loading data into BigQuery:
+* **Feature Engineering:** 
+  * `is_weekend`: Flags if the flight day is Saturday or Sunday.
+  * `lead_time_category`: Categorizes purchase lead times into 'Last-Minute', 'Short-Term', or 'Long-Term'.
+  * `booking_success_rate`: Calculates the completion rate based on passenger count.
+* **BigQuery Tables Generated:**
+  1. `transformed_table`: Contains all granular cleaned and enriched booking data.
+  2. `route_insights_table`: Aggregated data grouped by flight route (total bookings, average duration, average stay).
+  3. `origin_insights_table`: Aggregated data grouped by booking origin (total bookings, success rate, average purchase lead).
 
-## Fully Commented Code Files
+<p align="center"><img width="814" height="611" alt="FlightSpark" src="https://github.com/user-attachments/assets/3c2bd4ef-c0bc-4410-bd0f-487884236396" /></p>
 
-Here are the scripts with detailed comments injected directly into the code based exactly on the logical breakdown provided in the reference document.
+## CI/CD Pipeline (GitHub Actions)
+The repository uses GitHub Actions (`cicd.yaml`) to seamlessly deploy code to GCP environments based on the git branch.
 
-### 1. `.github/workflows/cicd.yaml`
+### Deployment Triggers:
+* **Push to `dev` branch:** Triggers the `upload-to-dev` job.
+  * Uploads `variables/dev/variables.json` to the DEV Composer bucket and imports them.
+  * Syncs the PySpark script to the designated GCS bucket.
+  * Deploys the Airflow DAG to the Cloud Composer `airflow-dev` environment.
+* **Push to `main` branch:** Triggers the `upload-to-prod` job.
+  * Uploads `variables/prod/variables.json` to the PROD Composer bucket and imports them.
+  * Syncs the PySpark script to the designated GCS bucket.
+  * Deploys the Airflow DAG to the Cloud Composer `airflow-prod` environment.
+ 
+<p align="center"><img width="612" height="761.6" alt="Github_Action" src="https://github.com/user-attachments/assets/6d214f1c-ffd7-44d3-92c0-07e25a21ee29" /></p>
 
-```yaml
-# cicd.yaml helps perform all automated actions when code is pushed[cite: 1]
-# If successful, a PR is generated. Once approved by seniors, it saves to the main branch[cite: 1].
-name: Flight Booking CICD
 
-# Defines the trigger for the actions[cite: 1]
-on:
-  push:
-    branches:
-      - dev   # All development happens on the dev branch[cite: 1]
-      - main
+### Secrets Required for CI/CD:
+Ensure the following secrets are configured in your GitHub repository:
+* `GCP_SA_KEY`: The JSON key for the GCP Service Account with permissions to access GCS, BigQuery, Composer, and Dataproc.
+* `GCP_PROJECT_ID`: Your GCP Project ID (e.g., `project-d1694a9a-9dde-4e3c-974`).
 
-jobs:
-  # Job 1: Upload to Dev Environment[cite: 1]
-  upload-to-dev:
-    # Runs only if the push happens on the 'dev' branch[cite: 1]
-    if: github.ref == 'refs/heads/dev'
-    runs-on: ubuntu-latest # Uses standard GitHub runner OS[cite: 1]
+## Setup & Local Development
+1. Clone the repository: `git clone <your-repo-url>`
+2. Create a `dev` and `main` branch to match the CI/CD requirements.
+3. Ensure you have the necessary Google Cloud Service Accounts set up with the following roles:
+   * Composer Administrator
+   * Dataproc Administrator / Dataproc Worker
+   * BigQuery Data Editor
+   * Storage Object Admin
+4. Modify the `variables/<env>/variables.json` files to match your exact GCP bucket names and environment specifics before pushing code.
 
-    steps:
-      # Step 1: Scan and checkout the repository code[cite: 1]
-      - name: Checkout Code
-        uses: actions/checkout@v3
+## Pipeline Workflow Setup & Execution
 
-      # Step 2: Authenticate to GCP so GitHub can talk to GCP[cite: 1]
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v1
-        with:
-          # Uses the JSON service account key stored in GitHub secrets[cite: 1]
-          credentials_json: ${{secrets.GCP_SA_KEY}}
+Here is the step-by-step breakdown of how the environment was set up and how the pipeline executes:
 
-      # Step 3: Setup Google Cloud SDK/Terminal in the runner[cite: 1]
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
+1. **Airflow Environments:** Setup 2 Google Cloud Composer environments (`airflow-dev` and `airflow-prod`).
+   <p align="center"><img width="1112" height="207" alt="image" src="https://github.com/user-attachments/assets/91fa5a61-f1b2-48bf-9497-ee5b37b1517f" /></p>
+<br>
+2. **GCS Storage:** Created 1 main GCS bucket (`airflow_flight_booking_bucket`). Inside it, created the folder `flight-booking-analysis/`, and within that, set up three subfolders: `source-dev`, `source-prod`, and `spark-job`. Uploaded the raw `flight_booking.csv` to both `source-dev` and `source-prod` folders.
+  <p align="center"> <img width="1918" height="286" alt="image" src="https://github.com/user-attachments/assets/175d40aa-b745-4109-9b2c-fd9d1ffbb0a7" /></p>
+<br>
+3. **BigQuery:** Created two separate BigQuery datasets: `flight_data_dev` and `flight_data_prod`.
+<p align="center"><img width="723" height="254" alt="image" src="https://github.com/user-attachments/assets/d973d914-3a7f-48d1-aed2-a3a58e375c16" /></p>
+<br>
+4. **Version Control:** Created a GitHub repository for the project.
+<p align="center"><img width="733" height="663" alt="image" src="https://github.com/user-attachments/assets/cd208d44-6833-42cb-a75b-61f3329863a8" /></p>
+<br>
+5. **GCP Authentication:** Generated a GCP Service Account Secret JSON key and added it to GitHub Actions Secrets.
+   <p align="center"> <img width="1713" height="779" alt="image" src="https://github.com/user-attachments/assets/9a6ec6a2-75ba-44df-9f10-1025107f0247" /></p>
+<br>
+6. **Local Development:** Set up a VM (or local workspace), linked it to the GitHub repository, and pulled the workspace.
+   <p align="center"> <img width="720" height="170" alt="image" src="https://github.com/user-attachments/assets/478fe36a-5b1b-4763-90e4-1b86f414829c" /></p>
+<br>
+7. **Code Creation:** Authored all necessary scripts, including `variables.json`, the PySpark job (`spark_transformation_job.py`), the Airflow DAG (`airflow_job.py`), and the GitHub Actions `.github/workflows/cicd.yaml` configuration.
+    <p align="center"><img width="445" height="412" alt="image" src="https://github.com/user-attachments/assets/32bd5223-3dd7-43c2-a038-e0384a75ba25" /></p>
+<br>
+8. **Dev Deployment:** Pushed the code to the GitHub repository via the VS Code terminal on the `dev` branch.
+   <p align="center"> <img width="853" height="377" alt="image" src="https://github.com/user-attachments/assets/65aee8db-7609-4511-ba78-ea502f5dec3f" /></p>
+<br>
 
-      # Step 4: Upload variables.json file to the Composer GCS bucket using gsutil[cite: 1]
-      - name: Upload Variables JSON to GCS
-        run: |
-          gsutil cp 04-Assets/variables/dev/variables.json gs://us-central1-airflow-dev-22033485-bucket/data/dev/variables.json
+9. **CI/CD Orchestration:** The push automatically triggered the GitHub Actions workflow, deploying variables, the PySpark job, and the DAG into the GCP Development environment.
+    <p align="center"><img width="1894" height="790" alt="image" src="https://github.com/user-attachments/assets/36c9508e-e37e-4adc-8b21-29b4b6da8b89" /></p>
 
-      # Step 5: Import variables into Airflow-DEV (Similar to manually creating variables in Airflow Admin UI)[cite: 1]
-      - name: Import Variable into Airflow-DEV
-        run: |
-          gcloud composer environments run airflow-dev \
-          --location us-central1 \
-          variables import -- /home/airflow/gcs/data/dev/variables.json
-
-      # Step 6: Sync PySpark job to GCS so Dataproc can access it[cite: 1]
-      - name: Upload Spark Job to GCS
-        run: |
-          gsutil cp 04-Assets/spark_transformation_job.py gs://airflow-test-projects-gds-dev/flight-booking-analysis/spark-job/
-
-      # Step 7: Upload Airflow DAG directly to the DEV Environment DAG Folder[cite: 1]
-      - name: Upload Airflow DAG to DEV Environment
-        run: |
-          gcloud composer environments storage dags import \
-          --environment airflow-dev \
-          --location us-central1 \
-          --source 04-Assets/airflow-job.py
-
-  # Job 2: Upload to Prod Environment (Triggers on main branch push)[cite: 1]
-  upload-to-prod:
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
     
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-        
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{secrets.GCP_SA_KEY}}
-          
-      - name: Setup Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@v1
-        with:
-          project_id: ${{ secrets.GCP_PROJECT_ID }}
-          
-      - name: Upload Variables JSON to GCS
-        run: |
-          gsutil cp 04-Assets/variables/prod/variables.json gs://us-central1-airflow-prod-45e33290-bucket/data/prod/variables.json
-          
-      - name: Import variables into Airflow-PROD
-        run: |
-          gcloud composer environments run airflow-prod \
-          --location us-central1 \
-          variables import -- /home/airflow/gcs/data/prod/variables.json
-          
-      - name: Upload Spark Job to GCS
-        run: |
-          gsutil cp 04-Assets/spark_transformation_job.py gs://airflow-test-projects-gds-prod/flight-booking-analysis/spark-job/
-          
-      - name: Upload Airflow DAG to PROD Environment
-        run: |
-          gcloud composer environments storage dags import \
-          --environment airflow-prod \
-          --location us-central1 \
-          --source 04-Assets/airflow-job.py
-
-```
-
-### 2. `airflow-job.py`
-
-```python
-from datetime import datetime, timedelta
-import uuid # Imported to create unique Job Batch IDs[cite: 1]
-from airflow import DAG
-from airflow.providers.google.cloud.operators.dataproc import DataprocCreateBatchOperator
-from airflow.providers.google.cloud.sensors.gcs import GCSObjectExistenceSensor
-from airflow.models import Variable
-
-# DAG default arguments[cite: 1]
-default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'retries': 1,
-    'retry_delay': timedelta(minutes=5),
-    'start_date': datetime(2025, 9, 15),
-}
-
-# Define the DAG using the 'with' context manager[cite: 1]
-# This automatically defines tasks globally under this DAG without needing to pass dag=dag to every task[cite: 1]
-with DAG(
-    dag_id='flight-booking-dataproc-bq-dag',
-    default_args=default_args,
-    schedule_interval=None, # Set to None to make it trigger manually[cite: 1]
-    catchup=False
-) as dag:
+10. **Pull Request:** Opened a Pull Request (PR) on GitHub to merge the `dev` branch into the `main` branch.
+   <p align="center"> <img width="840" height="563" alt="image" src="https://github.com/user-attachments/assets/4f2489d2-175c-4e78-801e-10ca308a5124" /></p>
+   <br>
+    <p align="center"><img width="653" height="157" alt="image" src="https://github.com/user-attachments/assets/6b65abdd-2ea0-45db-803d-8e02c69275c0" /></p>
     
-    # Fetch environment dynamically. If in dev Airflow, it fetches 'dev' from variables.json. Otherwise defaults to 'dev'[cite: 1]
-    env = Variable.get("env", default_var="dev")
-    # Fetch configurations from the uploaded variables.json file rather than Airflow Web UI Admin[cite: 1]
-    gcs_bucket = Variable.get("gcs_bucket", default_var="airflow-test-projects-gds-dev")
-    bq_project = Variable.get("bq_project", default_var="project-d1684aga-9dde")
-    bq_dataset = Variable.get("bq_dataset", default_var=f"flight_data_{env}")
-    
-    # Tables are stored in JSON format, so we set deserialize_json=True to fetch them[cite: 1]
-    tables = Variable.get("tables", deserialize_json=True)
-    transformed_table = tables["transformed_table"]
-    route_insights_table = tables["route_insights_table"]
-    origin_insights_table = tables["origin_insights_table"]
-
-    # Generate a unique batch ID using UUID, converted to string and sliced[cite: 1]
-    # Example format: flight-booking-batch-dev-a3bb189e[cite: 1]
-    job_batch_id = f"flight-booking-batch-{env}-{str(uuid.uuid4())[:8]}"
-
-    # Task 1: File Sensor[cite: 1]
-    # Checks if the flight booking CSV file is uploaded to the bucket. If not present, it won't run[cite: 1]
-    file_sensor = GCSObjectExistenceSensor(
-        task_id="check_file_arrival",
-        bucket=gcs_bucket,
-        # Path where the file is expected: flight-booking-analysis/source-dev/Flight_booking.csv[cite: 1]
-        object=f"flight-booking-analysis/source-{env}/Flight_booking.csv",
-        # Built-in Airflow connection profile to authenticate with GCP[cite: 1]
-        google_cloud_conn_id="google_cloud_default",
-        timeout=300, # Fails task if file doesn't arrive in 300 seconds[cite: 1]
-        poke_interval=30, # Rechecks the bucket every 30 seconds[cite: 1]
-        mode="poke" # Blocking mode: keeps 1 worker node blocked to check file status[cite: 1]
-    )
-
-    # Details to build the Dataproc Serverless cluster configuration[cite: 1]
-    batch_details = {
-        "pyspark_batch": {
-            # URI locating the main python PySpark script in GCS[cite: 1]
-            "main_python_file_uri": f"gs://{gcs_bucket}/flight-booking-analysis/spark-job/spark-transformation-job.py",
-            "python_file_uris": [],
-            "jar_file_uris": [],
-            # Arguments passed directly to the python script via command-line[cite: 1]
-            "args": [
-                f"--env={env}",
-                f"--bq-project={bq_project}",
-                f"--bq-dataset={bq_dataset}",
-                f"--transformed-table={transformed_table}",
-                f"--route_insights_table={route_insights_table}",
-                f"--origin_insights_table={origin_insights_table}",
-            ]
-        },
-        "runtime_config": {
-            "version": "2.2", # Specific Dataproc version required for cluster build[cite: 1]
-        },
-        "environment_config": {
-            "execution_config": {
-                "service_account": "1060-compute@developer.gserviceaccount.com",
-                "network_uri": f"projects/{bq_project}/global/networks/default",
-                "subnetwork_uri": f"projects/{bq_project}/regions/us-central1/subnetworks/default"
-            }
-        }
-    }
-
-    # Task 2: Submit PySpark job to Dataproc Serverless[cite: 1]
-    # Creates batches on a serverless cluster, avoiding manual cluster setup in GCP UI[cite: 1]
-    pyspark_task = DataprocCreateBatchOperator(
-        task_id="run_spark_job_on_dataproc_serverless",
-        batch=batch_details,
-        batch_id=job_batch_id, # Uses the UUID created earlier[cite: 1]
-        project_id=bq_project,
-        region="us-central1",
-        gcp_conn_id="google_cloud_default"
-    )
-
-    # Execution Order: First run file sensor task, then run PySpark task[cite: 1]
-    file_sensor >> pyspark_task
-
-```
-
-### 3. `spark-transformation-job.py`
-
-```python
-import argparse # To pass command-line arguments passed by DataprocCreateBatchOperator[cite: 1]
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, count, avg, when, lit, expr
-import logging
-import sys # Importing system files[cite: 1]
-
-# Initialize and configure logging[cite: 1]
-logging.basicConfig(
-    level=logging.INFO,
-    # Formatting logs to include timestamp, level, and message (e.g., 2026-09-05 19:04:26 - INFO - Input path resolved)[cite: 1]
-    format="%(asctime)s - %(levelname)s - %(message)s" 
-)
-logger = logging.getLogger(__name__)
-
-# Main job process definition[cite: 1]
-def job_process(env, bq_project, bq_dataset, transformed_table, route_insights_table, origin_insights_table):
-    try:
-        # Initialize Spark Session working on Hive implementation[cite: 1]
-        spark = SparkSession.builder \
-            .appName("Flight Booking Analysis") \
-            .config("spark.sql.catalogImplementation", "hive") \
-            .getOrCreate()
-        logger.info("Spark session initialized.")
-
-        # Resolve GCS path based on the environment to pick correct CSV file[cite: 1]
-        input_path = f"gs://airflow-test-projects-gds-{env}/flight-booking-analysis/source-{env}/Flight_booking.csv"
-        logger.info(f"Input path resolved: {input_path}")
-
-        # Read the raw CSV data, inferschema applied[cite: 1]
-        data = spark.read.csv(input_path, header=True, inferSchema=True)
-        logger.info("Data read from GCS")
-        logger.info("Starting data transformations.")
-
-        # Add derived columns utilizing lit for standard python value conversion to Spark Column object[cite: 1]
-        transformed_data = data.withColumn(
-            # is_weekend: 1 if flight_day is Sat or Sun, else 0[cite: 1]
-            "is_weekend", when(col("flight_day").isin("Sat", "Sun"), lit(1)).otherwise(lit(0))
-        ).withColumn(
-            # lead_time_category: Categorizes purchase lead time into Last Minute, Short-Term, Long-Term[cite: 1]
-            "lead_time_category", when(col("purchase_lead") < 7, lit("Last Minute"))
-            .when((col("purchase_lead") >= 7) & (col("purchase_lead") < 90), lit("Short-Term"))
-            .otherwise(lit("Long-Term"))
-        ).withColumn(
-            # booking_success_rate: Calculates success rate using an expression[cite: 1]
-            "booking_success_rate", expr("booking_complete / num_passengers")
-        )
-
-        # Aggregation 1: Route Insights[cite: 1]
-        # Groups data by route to find total bookings, average flight duration, and average stay length[cite: 1]
-        route_insights = transformed_data.groupBy("route").agg(
-            count("*").alias("total_booking"),
-            avg("flight_duration").alias("avg_flight_duration"),
-            avg("length_of_stay").alias("avg_stay_length")
-        )
-
-        # Aggregation 2: Origin Insights[cite: 1]
-        # Groups data by booking origin to find total bookings, success rate, and average purchase lead[cite: 1]
-        origin_insights = transformed_data.groupBy("booking_origin").agg(
-            count("*").alias("total_booking"),
-            avg("booking_success_rate").alias("success_rate"),
-            avg("purchase_lead").alias("avg_purchase_lead")
-        )
-
-        logger.info("Data transformations completed.")
-
-        # Write transformed data back to BigQuery using the 'direct' method to avoid intermediate load issues[cite: 1]
-        # Overwrite mode replaces table data on fresh runs[cite: 1]
-        logger.info(f"Writing transformed data to BigQuery table: {bq_project}:{bq_dataset}.{transformed_table}")
-        transformed_data.write \
-            .format("bigquery") \
-            .option("table", f"{bq_project}:{bq_dataset}.{transformed_table}") \
-            .option("writeMethod", "direct") \
-            .mode("overwrite") \
-            .save()
-
-        # Write route insights to BigQuery[cite: 1]
-        logger.info(f"Writing route insights to BigQuery table: {bq_project}:{bq_dataset}.{route_insights_table}")
-        route_insights.write \
-            .format("bigquery") \
-            .option("table", f"{bq_project}:{bq_dataset}.{route_insights_table}") \
-            .option("writeMethod", "direct") \
-            .mode("overwrite") \
-            .save()
-
-        # Write origin insights to BigQuery[cite: 1]
-        logger.info(f"Writing origin insights to BigQuery table: {bq_project}:{bq_dataset}.{origin_insights_table}")
-        origin_insights.write \
-            .format("bigquery") \
-            .option("table", f"{bq_project}:{bq_dataset}.{origin_insights_table}") \
-            .option("writeMethod", "direct") \
-            .mode("overwrite") \
-            .save()
-
-        logger.info("Data written to Bigquery successfully.")
-
-    # Prints message on failure[cite: 1]
-    except Exception as e:
-        logger.error(f"An error occurred: {e}")
-        sys.exit(1)
-    finally:
-        # Mandatory final step: Stop the Spark session[cite: 1]
-        if 'spark' in locals():
-            spark.stop()
-            logger.info("Spark session stopped")
-
-if __name__ == "__main__":
-    # Parser object to pass arguments natively (not using Airflow XCom)[cite: 1]
-    parser = argparse.ArgumentParser(description="Process flight booking data & write to bigquery.")
-    
-    # Setting required=True means these parameters must be supplied[cite: 1]
-    parser.add_argument("--env", required=True, help="Env (e.g. prod, dev)")
-    parser.add_argument("--bq-project", required=True, help="BigQuery project ID")
-    parser.add_argument("--bq-dataset", required=True, help="BigQuery dataset name")
-    parser.add_argument("--transformed-table", required=True, help="Bigquery table for transformed data")
-    parser.add_argument("--route_insights_table", required=True, help="Bigquery table for route insights")
-    parser.add_argument("--origin_insights_table", required=True, help="Bigquery table for origin insights")
-    
-    args = parser.parse_args()
-
-    # Call job_process function with the parsed arguments[cite: 1]
-    job_process(
-        env=args.env,
-        bq_project=args.bq_project,
-        bq_dataset=args.bq_dataset,
-        transformed_table=args.transformed_table,
-        route_insights_table=args.route_insights_table,
-        origin_insights_table=args.origin_insights_table
-    )
-
-```
-
-### 4. `variables/dev/variables.json`
-
-```json
-{
-  "env": "dev",
-  "gcs_bucket": "airflow-test-projects-gds-dev",
-  "bq_project": "project-d1684aga-9dde-3x-974",
-  "bq_dataset": "flight_data_dev",
-  "tables": {
-    "transformed_table": "transformed_flight_data_dev",
-    "route_insights_table": "route_insights_dev",
-    "origin_insights_table": "origin_insights_dev"
-  }
-}
-
-```
-
-
-
-
-
-
-Here is the video script, following the exact structure you requested, based on the project documentation.
-
-## Video Script: Flight Booking Data Pipeline
-
-**A) Overview**
-"Hello everyone! Today, I'll be walking you through my latest data engineering project: a Flight Booking Data Pipeline. This project processes raw flight booking data and automates the entire workflow from Google Cloud Storage to BigQuery using a fully automated CI/CD pipeline."
-
-**B) Explain Project: Business Need, Structure, & Key Features**
-"First, let's talk about the business need. The goal is to analyze over 16,600 flight booking records to understand passenger behavior, booking success rates, and route popularity.
-For the structure, this project is professionally separated into two environments: 'dev' for development and 'prod' for the live project.
-The key feature of this pipeline is its serverless architecture—we are using a Dataproc Serverless cluster that spins up automatically only when data needs to be processed."
-
-**C) Technology Stack**
-"For the technology stack, we are utilizing GitHub for version control and CI/CD actions. On Google Cloud Platform, we use Google Cloud Storage (or GCS) for our data lake, Google Cloud Composer for Apache Airflow orchestration, Dataproc Serverless for running our PySpark jobs, and finally, BigQuery as our data warehouse."
-
-**D) Project Architecture/Structure**
-"Let's look at the architecture. Our raw data, `Flight_booking.csv`, lands in a GCS bucket. Airflow constantly monitors this bucket using a File Sensor. Once the file is detected, Airflow triggers an Apache Spark job on a Dataproc Serverless cluster. Spark reads the CSV, infers the schema, performs data transformations, and writes the output into three separate tables in BigQuery: a transformed data table, a route insights table, and an origin insights table."
-
-**E) Workflow**
-"The workflow starts the moment a developer pushes code to GitHub. If pushed to the `dev` branch, GitHub Actions authenticate with GCP, upload our variables, and sync our Airflow DAGs and PySpark scripts to the dev environment. Once the code is live, you just upload the `Flight_booking.csv` file into the GCS bucket. Airflow senses the file, kicks off the PySpark job, and BigQuery is automatically populated with the fresh data."
-
-**F) Prerequisites (HOW and WHAT)**
-"Before running this, you need to set up a few prerequisites:
-
-* **Create an Airflow Environment:** Set this up in Google Cloud Composer to automatically generate the bucket where we will store our DAGs.
-
-
-* **Create GCS Buckets:** We need a bucket named `airflow-test-projects-gds` (with dev/prod suffixes) to hold our source files and Spark jobs.
-
-
-* **Create BigQuery Datasets:** Go to BigQuery Studio and create two datasets (e.g., `flight_data_dev` and `flight_data_prod`) in the `us-central1` location. Do not create the tables; our PySpark job will do that automatically.
-
-
-* **Setup GitHub & Branches:** Create a GitHub repository and clone it to your VS Code using `git clone`. Create a new branch for development using `git checkout -b dev` because all initial development happens here, not on main.
-
-
-* **Create Secret Keys:** Go to your GitHub repository settings, navigate to Secrets and Variables, and add two repository secrets: `GCP_PROJECT_ID` and `GCP_SA_KEY` (which contains your Google Cloud Service Account JSON credentials)."
-
-
-
-**G) Explain All Files**
-"Finally, let's break down the core files in this project:
-
-1. `.github/workflows/cicd.yaml`: This file handles our GitHub Actions, triggering deployments depending on whether we push to the dev or main branch.
-
-
-2. `variables/dev/variables.json` & `prod/variables.json`: These hold our environment-specific configurations like bucket names and BigQuery table names.
-
-
-3. `airflow-job.py`: This is our DAG file. It creates a unique job batch ID, uses a sensor to wait for the CSV file, and then triggers the Dataproc Batch Operator.
-
-
-4. `spark-transformation-job.py`: The heart of our logic. It reads the CSV, adds derived columns like `is_weekend` and `lead_time_category`, calculates booking success rates, aggregates insights, and overwrites the data directly into BigQuery."
-
-
-
----
-
-## README.md
-
-```markdown
+<br>
+<br>
+
+11. **Production Deployment:** Approved the PR, merging the `dev` code into `main`. This triggered the GitHub Actions pipeline for Production, deploying all assets automatically into the `prod` GCP environment.
+<p align="center"><img width="803" height="650" alt="image" src="https://github.com/user-attachments/assets/0e97696f-faad-42cd-9bbb-2e7d91550271" /></p>
+<bR> 
+<br>
+  <p align="center">  <img width="740" height="704" alt="image" src="https://github.com/user-attachments/assets/218e4016-a32a-4392-87f3-46ba0dbaebc5" /></p>
